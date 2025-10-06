@@ -13,4 +13,7 @@ and variables in /vless-server/vars/main.yml: \
 **domain_name** - This is the domain of a real, popular website that your server will disguise itself as. \
 \
 For deployment server and generate clients config files run from Linux machine or Windows WSL: \
-**ansible-playbook -i inventory.ini vless.yaml --ask-become-pass** 
+**ansible-playbook -i inventory.ini vless.yaml --ask-become-pass** \
+\
+Can also be used with configuration VLESS-WSS-Nginx.\
+Edit /vless-server/tasks/main.yml
