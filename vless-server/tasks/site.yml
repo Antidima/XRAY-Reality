@@ -1,0 +1,61 @@
+---
+#install nginx site
+- block:
+   - name: install nginx
+     ansible.builtin.package:
+      name: nginx
+      state: latest
+   - name: install certbot
+     ansible.builtin.package:
+      name: certbot
+      state: latest
+   - name: install certbot-nginx
+     ansible.builtin.package:
+      name: python3-certbot-nginx
+      state: latest
+   - name: create site directory
+     ansible.builtin.file:
+      path: /var/www/site
+      state: directory
+      owner: www-data
+      group: www-data
+   - name: unpack template site
+     ansible.builtin.unarchive:
+      src: example_site.zip
+      dest: /var/www/site
+      remote_src: no
+   - name: install config nginx
+     ansible.builtin.template:
+      src: xray_site.conf.j2
+      dest: /etc/nginx/sites-available/xrsite
+      owner: www-data
+      group: www-data
+      mode: 0660
+   - name: create SSL directory
+     ansible.builtin.file:
+      path: /etc/letsencrypt/{{ domain_name }}/
+      state: directory
+      owner: www-data
+      group: www-data
+ #  - name: copy ssl certificates
+ #    ansible.builtin.copy:
+ #     src: "{{ item }}"
+ #     dest: /etc/letsencrypt/{{ domain_name }}/
+ #     owner: www-data
+ #     group: www-data
+ #     mode: 0660
+ #    loop:
+ #     - lookfor.run.place.cer
+ #     - lookfor.run.place.key
+ #     - ca.cer
+  rescue:
+   - name: Errors in nginx block
+     debug:
+      msg: "Nginx configuration block has errors"
+  always:
+   - name: Enable temlpalte site
+     ansible.builtin.file:
+      src: /etc/nginx/sites-available/xrsite
+      dest: /etc/nginx/sites-enabled/xrsite
+      state: link
+     notify: "restart nginx service"

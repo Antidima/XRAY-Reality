@@ -1,0 +1,10 @@
+---
+# handlers file for vless-server
+- name: restart xray service
+  service:
+   name: xray
+   state: restarted
+- name: restart nginx service
+  service:
+   name: nginx
+   state: restarted

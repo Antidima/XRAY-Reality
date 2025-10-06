@@ -1,0 +1,7 @@
+---
+# vars file for vless-server
+vps_name: "vps-srv"
+server_ip: "0.0.0.0"
+domain_name: "cloudflare.com"
+xu_pass: "G@h0kmG0kmp0d@ntkz1"
+xray_url: "https://github.com/XTLS/Xray-install/raw/main/install-release.sh"

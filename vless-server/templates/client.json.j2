@@ -1,0 +1,58 @@
+{% set num = item %}
+{% set uuid_var = 'xuuid' ~ num %}
+{% set suuid_var = 'suuid_' ~ num %}
+{
+    "log": {
+        "loglevel": "debug"
+    },
+    "inbounds": [
+        {
+            "listen": "127.0.0.1", 
+            "port": 10808, 
+            "protocol": "socks",
+            "settings": {
+                "udp": true
+            },
+            "sniffing": {
+                "enabled": true,
+                "destOverride": [
+                    "http",
+                    "tls",
+                    "quic"
+                ],
+                "routeOnly": true
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "vless",
+            "settings": {
+                "vnext": [
+                    {
+                        "address": "{{ server_ip }}", 
+                        "port": 443, 
+                        "users": [
+                            {
+                                "id": "{{ hostvars[inventory_hostname][uuid_var] }}",
+                                "encryption": "none",
+                                "flow": "xtls-rprx-vision"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "reality",
+                "realitySettings": {
+                    "fingerprint": "chrome", 
+                    "serverName": "{{ domain_name }}",
+                    "publicKey": "{{ PublicKey }}",
+                    "spiderX": "/",
+                    "shortId": "{{ hostvars[inventory_hostname][suuid_var] }}"                }
+            },
+            "tag": "proxy"
+        }
+    ]
+}

@@ -1,0 +1,154 @@
+---
+# tasks file for vless-server
+- block:
+   - name: Create user
+     ansible.builtin.user:
+      name: xuser
+      comment: user for Xray server
+      create_home: yes
+      password: "{{ xu_pass }}"
+   - name: Activate BBR and routing
+     ansible.builtin.blockinfile:
+      path: /etc/sysctl.conf
+      append_newline: true
+      block: |
+       net.ipv4.ip_forward=1
+       net.core.default_qdisc=fq
+       net.ipv4.tcp_congestion_control=bbr
+   - name: change hostname
+     ansible.builtin.shell:
+      cmd: "hostnamectl set-hostname {{ vps_name }}"
+   - name: install MC
+     ansible.builtin.package:
+      name: mc
+      state: latest
+  rescue:
+   - name: Error in block1
+     debug:
+      msg: "block 1 is failed "
+  always:
+   - name: sysctl reload
+     ansible.builtin.shell:
+      cmd: sysctl -p
+  tags: block_prep
+- block:
+   - name: Fetch Xray archive
+     ansible.builtin.get_url:
+      url: "{{ xray_url }}"
+      dest: /opt/install-release.sh
+      mode: 0554
+   - name: Install Xray
+     ansible.builtin.shell:
+      cmd: /opt/install-release.sh
+   - name: Dat files owner
+     ansible.builtin.file:
+      path: /usr/local/share/xray
+      state: directory
+      recurse: yes
+      owner: xuser
+      group: xuser
+   - name: Log files owner
+     ansible.builtin.file:
+      path: /var/log/xray
+      state: directory
+      owner: xuser
+      group: xuser
+  rescue:
+   - name: Error behavior
+     debug:
+      msg: "Xray installation process was failed"
+  always:
+   - name: Check xray main file
+     ansible.builtin.stat:
+      path: /usr/local/bin/xray
+     register: xray_stat
+   - name: show status
+     debug:
+      msg: "{{ xray_stat.stat.exists }}"
+  tags: block_inst
+- block:
+   - name: generate first vless user
+     ansible.builtin.shell:
+      cmd: "xray uuid"
+     register: uuid_results
+     with_sequence: count=5
+     changed_when: false
+   - name: register user variables
+     ansible.builtin.set_fact:
+      xuuid1: "{{ uuid_results.results[0].stdout }}"
+      xuuid2: "{{ uuid_results.results[1].stdout }}"
+      xuuid3: "{{ uuid_results.results[2].stdout }}"
+      xuuid4: "{{ uuid_results.results[3].stdout }}"
+      xuuid5: "{{ uuid_results.results[4].stdout }}"
+   - name: generate certificate
+     ansible.builtin.shell:
+      cmd: xray x25519
+     register: cert_a
+   - name: show cert status
+     ansible.builtin.debug:
+      msg: "{{ cert_a.stdout }}"
+   - name: write cert to var file
+     ansible.builtin.shell:
+      cmd: |
+       echo {{ cert_a.stdout_lines }} | sed 's/^.//; s/.$//' | sed 's/, /"\n/g'| sed 's/ / "/g' >> ./vless-server/vars/main.yml
+       sed -i '/Hash32/d' ./vless-server/vars/main.yml
+     delegate_to: localhost
+     connection: local
+     become: no
+   - name: register private key
+     ansible.builtin.set_fact:
+      PrivateKey: "{{ cert_a.stdout_lines[0].split()[1] }}"
+   - name: register public key
+     ansible.builtin.set_fact:
+      PublicKey: "{{ cert_a.stdout_lines[1].split()[1] }}"
+   - name: create short id fact
+     ansible.builtin.set_fact:
+       "suuid_{{ item }}": "{{ lookup('pipe', 'openssl rand -hex 4') }}"
+     loop:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+  tags: block_gen
+- block:
+   - name: create server config
+     ansible.builtin.template:
+      src: config.json.j2
+      dest: /usr/local/etc/xray/config.json
+      owner: xuser
+      mode: '0644'
+     notify: "restart xray service"
+   - name: create client config
+     ansible.builtin.template:
+      src: client.json.j2
+      dest: client{{ item }}.json
+     loop: "{{ range(1, 6) | list }}"
+     vars:
+      client_n: "{{ item }}"
+     delegate_to: localhost
+     connection: local
+     become: no
+  tags: block_templ
+#- block:
+#   - name: generate cert
+#     ansible.builtin.shell:
+#      cmd: xray x25519
+#     register: cert_b
+#   - name: show cert stdout
+#     ansible.builtin.debug:
+#      msg: "{{ cert_b.stdout }}"
+#   - name: write cert to file
+#     ansible.builtin.shell:
+#      cmd: |
+#       echo {{ cert_b.stdout_lines }} | sed 's/^.//; s/.$//' | sed 's/, /"\n/g'| sed 's/ / "/g' > ./vless-server/vars/main2.yml
+#       sed -i '/Hash32/d' ./vless-server/vars/main2.yml
+#     delegate_to: localhost
+#     connection: local
+#     become: no
+#  tags: block_tes
+#- block:
+#   - name: call nginx playbook
+#     ansible.builtin.include_tasks:
+#      file: site.yml
+#  tags: block_nginx
